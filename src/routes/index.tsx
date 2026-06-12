@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Calendar, Users, Building2, FileText, Home, FolderKanban,
   Monitor, Handshake, ArrowLeftRight, FileSignature, BarChart3, LineChart,
   Megaphone, Calculator, DollarSign, Mail, Plug, Menu, MoreVertical, Search,
-  MapPin, Download, Flag, Bookmark, Phone, LogOut, ChevronDown, Lock, Upload, Trash2,
+  MapPin, Download, Flag, Bookmark, Phone, LogOut, ChevronDown, Lock, Upload, Trash2, FileText as FileTextIcon,
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -300,6 +300,122 @@ function parseCsvToLeads(text: string): Lead[] {
     });
   }
   return leads;
+}
+
+async function extractPdfText(file: File): Promise<string[]> {
+  const pdfjs: any = await import("pdfjs-dist/build/pdf.mjs");
+  const workerSrc = (await import("pdfjs-dist/build/pdf.worker.mjs?url")).default;
+  pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjs.getDocument({ data: buf }).promise;
+  const pages: string[] = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    // Reconstruct lines using y-coords
+    const items = content.items as any[];
+    const lines: Record<string, { x: number; str: string }[]> = {};
+    for (const it of items) {
+      const y = Math.round(it.transform[5]);
+      const key = String(y);
+      (lines[key] ||= []).push({ x: it.transform[4], str: it.str });
+    }
+    const sortedYs = Object.keys(lines).map(Number).sort((a, b) => b - a);
+    const pageText = sortedYs
+      .map((y) =>
+        lines[String(y)]
+          .sort((a, b) => a.x - b.x)
+          .map((p) => p.str)
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim(),
+      )
+      .filter(Boolean)
+      .join("\n");
+    pages.push(pageText);
+  }
+  return pages;
+}
+
+function parsePdfTextToLeads(pages: string[]): Lead[] {
+  const out: Lead[] = [];
+  const fullText = pages.join("\n");
+  // Split on "Actualizat la:" which appears once per lead, then look back for title
+  const blocks = fullText.split(/(?=Actualizat la:)/g);
+  let prevTail = "";
+  let idx = 0;
+  for (const raw of blocks) {
+    if (!/Actualizat la:/.test(raw)) {
+      prevTail = raw;
+      continue;
+    }
+    const block = prevTail + raw;
+    prevTail = "";
+
+    const get = (re: RegExp) => {
+      const m = block.match(re);
+      return m ? m[1].trim() : "";
+    };
+
+    // Title: the line right before the "Spatiu ... de vanzare|inchiriat" descriptor
+    const typeMatch = block.match(
+      /(Spatiu [a-zA-Z]+ de (?:vanzare|inchiriat)[^\n,]*),\s*([^\n]+?)(?=\s*Actualizat la:)/,
+    );
+    const type = typeMatch ? typeMatch[1].trim() : "Spatiu comercial";
+    const location = typeMatch ? typeMatch[2].trim() : "";
+
+    // Title is the text right before the type
+    let title = "Lead importat din PDF";
+    if (typeMatch) {
+      const before = block.slice(0, block.indexOf(typeMatch[0]));
+      const lines = before.split("\n").map((l) => l.trim()).filter(Boolean);
+      // Drop boilerplate
+      const cleaned = lines.filter(
+        (l) =>
+          !/^(IMOFLEX|KASA|Dashboard|BAZA DE DATE|MARKETING|UTILE|Titlu|descarca poze|Vezi pe harta|Salveaza|Raporteaza|Sursa:|Prima aparitie|Cauta Anunturi|Particulari|Vezi mai mult|Telefon:|Nume:|E-mail:)/i.test(
+            l,
+          ) && l.length > 3 && l.length < 200,
+      );
+      if (cleaned.length) title = cleaned[cleaned.length - 1];
+    }
+
+    const updated = get(/Actualizat la:\s*([0-9.: ]+)/);
+    const posted = get(/Prima aparitie:\s*([0-9.: ]+)/);
+    const source = get(/Sursa:\s*([^\s\n]+(?:\s*\([^)]+\))?)/);
+    const priceM = block.match(
+      /([\d.,]+\s*(?:EUR|RON)(?:\s*negociabil)?)/,
+    );
+    const areaM = block.match(/(\d[\d.,]*\s*mp[^\n,]*)/);
+    const yearM = block.match(/\b(19\d{2}|20\d{2})\b/);
+    const phoneM = block.match(/(?:Telefon:\s*)(0\d{8,10}|\+?\d{9,15})/);
+    const emailM = block.match(/([\w.+-]+@[\w-]+\.[\w.-]+)/);
+    const nameM = block.match(/Nume:\s*([^\n]+?)(?=\s+Telefon:|\s+E-mail:|\n|$)/);
+
+    // Description: text after "Raporteaza Anunt"
+    const descM = block.match(/Raporteaza Anunt\s*([\s\S]+?)(?=\n|Vezi mai mult|$)/);
+    let description = descM ? descM[1].trim() : "";
+    description = description.replace(/\s+/g, " ").slice(0, 600);
+
+    out.push({
+      id: `pdf-${Date.now()}-${idx++}`,
+      title,
+      type,
+      location,
+      updated: updated || "—",
+      posted: posted || updated || "—",
+      source: source || "PDF import",
+      price: priceM ? priceM[1].replace(/\s+/g, " ").trim() : "—",
+      area: areaM ? areaM[1].replace(/\s+/g, " ").trim() : "—",
+      year: yearM ? yearM[1] : undefined,
+      name: nameM ? nameM[1].trim() : "—",
+      phone: phoneM ? phoneM[1] : undefined,
+      email: emailM ? emailM[1] : undefined,
+      description: description || "Lead extras din PDF.",
+      image:
+        "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=400&h=300&fit=crop",
+    });
+  }
+  return out;
 }
 
 function LeadCard({ lead }: { lead: Lead }) {
