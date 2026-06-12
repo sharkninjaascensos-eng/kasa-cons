@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Calendar, Users, Building2, FileText, Home, FolderKanban,
   Monitor, Handshake, ArrowLeftRight, FileSignature, BarChart3, LineChart,
   Megaphone, Calculator, DollarSign, Mail, Plug, Menu, MoreVertical, Search,
-  MapPin, Download, Flag, Bookmark, Phone, LogOut, ChevronDown, Lock,
+  MapPin, Download, Flag, Bookmark, Phone, LogOut, ChevronDown, Lock, Upload, Trash2,
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -77,7 +77,7 @@ type Lead = {
   image: string;
 };
 
-const leads: Lead[] = [
+const defaultLeads: Lead[] = [
   {
     id: "1",
     title: "Afacere de vanzare la cheie",
