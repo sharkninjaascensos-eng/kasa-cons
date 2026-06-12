@@ -249,6 +249,59 @@ const STATUS_OPTIONS = [
 ] as const;
 type StatusValue = typeof STATUS_OPTIONS[number]["value"];
 
+function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQuotes) {
+      if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (c === '"') { inQuotes = false; }
+      else cur += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === "," || c === ";") { out.push(cur); cur = ""; }
+      else cur += c;
+    }
+  }
+  out.push(cur);
+  return out.map((s) => s.trim());
+}
+
+function parseCsvToLeads(text: string): Lead[] {
+  const lines = text.replace(/\r/g, "").split("\n").filter((l) => l.trim() !== "");
+  if (lines.length < 2) return [];
+  const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase().replace(/^"|"$/g, ""));
+  const leads: Lead[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cells = parseCsvLine(lines[i]);
+    const row: Record<string, string> = {};
+    headers.forEach((h, idx) => { row[h] = cells[idx] ?? ""; });
+    const title = row.title || row.titlu || row.name || "";
+    if (!title) continue;
+    leads.push({
+      id: `csv-${Date.now()}-${i}`,
+      title,
+      type: row.type || row.tip || "Lead importat",
+      location: row.location || row.locatie || "",
+      updated: row.updated || row.actualizat || new Date().toLocaleString("ro-RO"),
+      posted: row.posted || row.aparitie || row.updated || new Date().toLocaleString("ro-RO"),
+      source: row.source || row.sursa || "CSV import",
+      price: row.price || row.pret || "—",
+      area: row.area || row.suprafata || "—",
+      year: row.year || row.an || undefined,
+      category: row.category || row.categorie || undefined,
+      name: row.name || row.nume || row.contact || "—",
+      phone: row.phone || row.telefon || undefined,
+      email: row.email || undefined,
+      description: row.description || row.descriere || "",
+      image: row.image || row.imagine || "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=400&h=300&fit=crop",
+    });
+  }
+  return leads;
+}
+
 function LeadCard({ lead }: { lead: Lead }) {
   const [note, setNote] = useState("");
   const [status, setStatus] = useState<StatusValue>("new");
