@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Calendar, Users, Building2, FileText, Home, FolderKanban,
   Monitor, Handshake, ArrowLeftRight, FileSignature, BarChart3, LineChart,
   Megaphone, Calculator, DollarSign, Mail, Plug, Menu, MoreVertical, Search,
-  MapPin, Download, Flag, Bookmark, Phone, LogOut, ChevronDown, Lock, Upload, Trash2,
+  MapPin, Download, Flag, Bookmark, Phone, LogOut, ChevronDown, Lock, Upload, Trash2, FileText as FileTextIcon,
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -302,6 +302,124 @@ function parseCsvToLeads(text: string): Lead[] {
   return leads;
 }
 
+async function extractPdfText(file: File): Promise<string[]> {
+  // @ts-ignore - no types shipped for direct build path
+  const pdfjs: any = await import("pdfjs-dist/build/pdf.mjs");
+  // @ts-ignore
+  const workerSrc = (await import("pdfjs-dist/build/pdf.worker.mjs?url")).default;
+  pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjs.getDocument({ data: buf }).promise;
+  const pages: string[] = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    // Reconstruct lines using y-coords
+    const items = content.items as any[];
+    const lines: Record<string, { x: number; str: string }[]> = {};
+    for (const it of items) {
+      const y = Math.round(it.transform[5]);
+      const key = String(y);
+      (lines[key] ||= []).push({ x: it.transform[4], str: it.str });
+    }
+    const sortedYs = Object.keys(lines).map(Number).sort((a, b) => b - a);
+    const pageText = sortedYs
+      .map((y) =>
+        lines[String(y)]
+          .sort((a, b) => a.x - b.x)
+          .map((p) => p.str)
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim(),
+      )
+      .filter(Boolean)
+      .join("\n");
+    pages.push(pageText);
+  }
+  return pages;
+}
+
+function parsePdfTextToLeads(pages: string[]): Lead[] {
+  const out: Lead[] = [];
+  const fullText = pages.join("\n");
+  // Split on "Actualizat la:" which appears once per lead, then look back for title
+  const blocks = fullText.split(/(?=Actualizat la:)/g);
+  let prevTail = "";
+  let idx = 0;
+  for (const raw of blocks) {
+    if (!/Actualizat la:/.test(raw)) {
+      prevTail = raw;
+      continue;
+    }
+    const block = prevTail + raw;
+    prevTail = "";
+
+    const get = (re: RegExp) => {
+      const m = block.match(re);
+      return m ? m[1].trim() : "";
+    };
+
+    // Title: the line right before the "Spatiu ... de vanzare|inchiriat" descriptor
+    const typeMatch = block.match(
+      /(Spatiu [a-zA-Z]+ de (?:vanzare|inchiriat)[^\n,]*),\s*([^\n]+?)(?=\s*Actualizat la:)/,
+    );
+    const type = typeMatch ? typeMatch[1].trim() : "Spatiu comercial";
+    const location = typeMatch ? typeMatch[2].trim() : "";
+
+    // Title is the text right before the type
+    let title = "Lead importat din PDF";
+    if (typeMatch) {
+      const before = block.slice(0, block.indexOf(typeMatch[0]));
+      const lines = before.split("\n").map((l) => l.trim()).filter(Boolean);
+      // Drop boilerplate
+      const cleaned = lines.filter(
+        (l) =>
+          !/^(IMOFLEX|KASA|Dashboard|BAZA DE DATE|MARKETING|UTILE|Titlu|descarca poze|Vezi pe harta|Salveaza|Raporteaza|Sursa:|Prima aparitie|Cauta Anunturi|Particulari|Vezi mai mult|Telefon:|Nume:|E-mail:)/i.test(
+            l,
+          ) && l.length > 3 && l.length < 200,
+      );
+      if (cleaned.length) title = cleaned[cleaned.length - 1];
+    }
+
+    const updated = get(/Actualizat la:\s*([0-9.: ]+)/);
+    const posted = get(/Prima aparitie:\s*([0-9.: ]+)/);
+    const source = get(/Sursa:\s*([^\s\n]+(?:\s*\([^)]+\))?)/);
+    const priceM = block.match(
+      /([\d.,]+\s*(?:EUR|RON)(?:\s*negociabil)?)/,
+    );
+    const areaM = block.match(/(\d[\d.,]*\s*mp[^\n,]*)/);
+    const yearM = block.match(/\b(19\d{2}|20\d{2})\b/);
+    const phoneM = block.match(/(?:Telefon:\s*)(0\d{8,10}|\+?\d{9,15})/);
+    const emailM = block.match(/([\w.+-]+@[\w-]+\.[\w.-]+)/);
+    const nameM = block.match(/Nume:\s*([^\n]+?)(?=\s+Telefon:|\s+E-mail:|\n|$)/);
+
+    // Description: text after "Raporteaza Anunt"
+    const descM = block.match(/Raporteaza Anunt\s*([\s\S]+?)(?=\n|Vezi mai mult|$)/);
+    let description = descM ? descM[1].trim() : "";
+    description = description.replace(/\s+/g, " ").slice(0, 600);
+
+    out.push({
+      id: `pdf-${Date.now()}-${idx++}`,
+      title,
+      type,
+      location,
+      updated: updated || "—",
+      posted: posted || updated || "—",
+      source: source || "PDF import",
+      price: priceM ? priceM[1].replace(/\s+/g, " ").trim() : "—",
+      area: areaM ? areaM[1].replace(/\s+/g, " ").trim() : "—",
+      year: yearM ? yearM[1] : undefined,
+      name: nameM ? nameM[1].trim() : "—",
+      phone: phoneM ? phoneM[1] : undefined,
+      email: emailM ? emailM[1] : undefined,
+      description: description || "Lead extras din PDF.",
+      image:
+        "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=400&h=300&fit=crop",
+    });
+  }
+  return out;
+}
+
 function LeadCard({ lead }: { lead: Lead }) {
   const [note, setNote] = useState("");
   const [status, setStatus] = useState<StatusValue>("new");
@@ -504,22 +622,30 @@ function Index() {
     localStorage.setItem("kasa:leads", JSON.stringify(next));
   };
 
-  const onCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    const text = await file.text();
+    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+    setImportMsg(isPdf ? "Se proceseaza PDF-ul..." : "Se proceseaza CSV-ul...");
     try {
-      const imported = parseCsvToLeads(text);
+      let imported: Lead[] = [];
+      if (isPdf) {
+        const pages = await extractPdfText(file);
+        imported = parsePdfTextToLeads(pages);
+      } else {
+        imported = parseCsvToLeads(await file.text());
+      }
       if (!imported.length) {
-        setImportMsg("Niciun lead gasit in CSV.");
+        setImportMsg("Niciun lead gasit in fisier.");
         return;
       }
       persistLeads([...imported, ...leads]);
       setImportMsg(`${imported.length} leaduri importate.`);
       setTimeout(() => setImportMsg(null), 4000);
     } catch (err) {
-      setImportMsg("Eroare la import CSV.");
+      console.error(err);
+      setImportMsg("Eroare la import. Verifica fisierul.");
     }
   };
 
@@ -551,8 +677,13 @@ function Index() {
               />
             </div>
             <label className="bg-primary text-primary-foreground text-sm font-semibold px-3 py-1.5 rounded hover:bg-primary/90 cursor-pointer flex items-center gap-1">
-              <Upload className="h-4 w-4"/> Incarca CSV
-              <input type="file" accept=".csv,text/csv" className="hidden" onChange={onCsvUpload}/>
+              <Upload className="h-4 w-4"/> Incarca CSV/PDF
+              <input
+                type="file"
+                accept=".csv,text/csv,.pdf,application/pdf"
+                className="hidden"
+                onChange={onFileUpload}
+              />
             </label>
             <button
               onClick={resetLeads}
@@ -577,10 +708,15 @@ function Index() {
               {importMsg}
             </div>
           )}
-          <div className="mb-4 text-xs text-muted-foreground bg-card border border-border rounded p-3">
-            <strong className="text-foreground">Format CSV acceptat:</strong> prima linie = header. Coloane recunoscute:
-            <code className="text-primary"> title, type, location, updated, posted, source, price, area, year, category, name, phone, email, description, image</code>.
-            Doar <code className="text-primary">title</code> este obligatoriu.
+          <div className="mb-4 text-xs text-muted-foreground bg-card border border-border rounded p-3 space-y-1">
+            <div>
+              <strong className="text-foreground">CSV:</strong> prima linie = header. Coloane:
+              <code className="text-primary"> title, type, location, updated, posted, source, price, area, year, name, phone, email, description, image</code>.
+            </div>
+            <div className="flex items-start gap-1">
+              <FileTextIcon className="h-3.5 w-3.5 mt-0.5 text-primary shrink-0"/>
+              <span><strong className="text-foreground">PDF:</strong> exporturi din CRM imobiliar (Imoflex / Particulari CRM). Se detecteaza automat titlu, locatie, pret, suprafata, contact si descriere.</span>
+            </div>
           </div>
           <div className="mb-4 flex items-baseline justify-between">
             <h1 className="text-xl font-black tracking-tight">Particulari CRM</h1>
