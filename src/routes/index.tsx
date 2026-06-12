@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Calendar, Users, Building2, FileText, Home, FolderKanban,
   Monitor, Handshake, ArrowLeftRight, FileSignature, BarChart3, LineChart,
   Megaphone, Calculator, DollarSign, Mail, Plug, Menu, MoreVertical, Search,
-  MapPin, Download, Flag, Bookmark, Phone, LogOut, ChevronDown, Lock,
+  MapPin, Download, Flag, Bookmark, Phone, LogOut, ChevronDown, Lock, Upload, Trash2,
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -77,7 +77,7 @@ type Lead = {
   image: string;
 };
 
-const leads: Lead[] = [
+const defaultLeads: Lead[] = [
   {
     id: "1",
     title: "Afacere de vanzare la cheie",
@@ -248,6 +248,59 @@ const STATUS_OPTIONS = [
   { value: "not_interested", label: "Neinteresat", color: "bg-zinc-500 text-white" },
 ] as const;
 type StatusValue = typeof STATUS_OPTIONS[number]["value"];
+
+function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQuotes) {
+      if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (c === '"') { inQuotes = false; }
+      else cur += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === "," || c === ";") { out.push(cur); cur = ""; }
+      else cur += c;
+    }
+  }
+  out.push(cur);
+  return out.map((s) => s.trim());
+}
+
+function parseCsvToLeads(text: string): Lead[] {
+  const lines = text.replace(/\r/g, "").split("\n").filter((l) => l.trim() !== "");
+  if (lines.length < 2) return [];
+  const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase().replace(/^"|"$/g, ""));
+  const leads: Lead[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cells = parseCsvLine(lines[i]);
+    const row: Record<string, string> = {};
+    headers.forEach((h, idx) => { row[h] = cells[idx] ?? ""; });
+    const title = row.title || row.titlu || row.name || "";
+    if (!title) continue;
+    leads.push({
+      id: `csv-${Date.now()}-${i}`,
+      title,
+      type: row.type || row.tip || "Lead importat",
+      location: row.location || row.locatie || "",
+      updated: row.updated || row.actualizat || new Date().toLocaleString("ro-RO"),
+      posted: row.posted || row.aparitie || row.updated || new Date().toLocaleString("ro-RO"),
+      source: row.source || row.sursa || "CSV import",
+      price: row.price || row.pret || "—",
+      area: row.area || row.suprafata || "—",
+      year: row.year || row.an || undefined,
+      category: row.category || row.categorie || undefined,
+      name: row.name || row.nume || row.contact || "—",
+      phone: row.phone || row.telefon || undefined,
+      email: row.email || undefined,
+      description: row.description || row.descriere || "",
+      image: row.image || row.imagine || "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=400&h=300&fit=crop",
+    });
+  }
+  return leads;
+}
 
 function LeadCard({ lead }: { lead: Lead }) {
   const [note, setNote] = useState("");
@@ -429,15 +482,51 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
 function Index() {
   const [authed, setAuthed] = useState(false);
   const [ready, setReady] = useState(false);
+  const [leads, setLeads] = useState<Lead[]>(defaultLeads);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
 
   useEffect(() => {
     setAuthed(localStorage.getItem("kasa:auth") === "1");
     setReady(true);
+    const saved = localStorage.getItem("kasa:leads");
+    if (saved) {
+      try { setLeads(JSON.parse(saved)); } catch {}
+    }
   }, []);
 
   const logout = () => {
     localStorage.removeItem("kasa:auth");
     setAuthed(false);
+  };
+
+  const persistLeads = (next: Lead[]) => {
+    setLeads(next);
+    localStorage.setItem("kasa:leads", JSON.stringify(next));
+  };
+
+  const onCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const text = await file.text();
+    try {
+      const imported = parseCsvToLeads(text);
+      if (!imported.length) {
+        setImportMsg("Niciun lead gasit in CSV.");
+        return;
+      }
+      persistLeads([...imported, ...leads]);
+      setImportMsg(`${imported.length} leaduri importate.`);
+      setTimeout(() => setImportMsg(null), 4000);
+    } catch (err) {
+      setImportMsg("Eroare la import CSV.");
+    }
+  };
+
+  const resetLeads = () => {
+    if (!confirm("Resetezi lista la leadurile demo?")) return;
+    localStorage.removeItem("kasa:leads");
+    setLeads(defaultLeads);
   };
 
   if (!ready) return null;
@@ -461,8 +550,16 @@ function Index() {
                 className="pl-8 pr-3 py-1.5 text-sm border border-input rounded w-56 focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
-            <button className="bg-primary text-primary-foreground text-sm font-semibold px-3 py-1.5 rounded hover:bg-primary/90">
-              + Lead nou
+            <label className="bg-primary text-primary-foreground text-sm font-semibold px-3 py-1.5 rounded hover:bg-primary/90 cursor-pointer flex items-center gap-1">
+              <Upload className="h-4 w-4"/> Incarca CSV
+              <input type="file" accept=".csv,text/csv" className="hidden" onChange={onCsvUpload}/>
+            </label>
+            <button
+              onClick={resetLeads}
+              title="Resetare la demo"
+              className="p-2 rounded border border-border text-muted-foreground hover:text-primary hover:border-primary"
+            >
+              <Trash2 className="h-4 w-4"/>
             </button>
             <button
               onClick={logout}
@@ -475,6 +572,16 @@ function Index() {
         </header>
 
         <main className="p-5 max-w-5xl w-full mx-auto">
+          {importMsg && (
+            <div className="mb-3 px-3 py-2 text-sm rounded border border-primary/30 bg-primary/10 text-primary font-semibold">
+              {importMsg}
+            </div>
+          )}
+          <div className="mb-4 text-xs text-muted-foreground bg-card border border-border rounded p-3">
+            <strong className="text-foreground">Format CSV acceptat:</strong> prima linie = header. Coloane recunoscute:
+            <code className="text-primary"> title, type, location, updated, posted, source, price, area, year, category, name, phone, email, description, image</code>.
+            Doar <code className="text-primary">title</code> este obligatoriu.
+          </div>
           <div className="mb-4 flex items-baseline justify-between">
             <h1 className="text-xl font-black tracking-tight">Particulari CRM</h1>
             <span className="text-xs text-muted-foreground">{leads.length} leaduri afisate</span>
