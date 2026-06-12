@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard, Calendar, Users, Building2, FileText, Home, FolderKanban,
   Monitor, Handshake, ArrowLeftRight, FileSignature, BarChart3, LineChart,
   Megaphone, Calculator, DollarSign, Mail, Plug, Menu, MoreVertical, Search,
-  MapPin, Download, Flag, Bookmark, Phone,
+  MapPin, Download, Flag, Bookmark, Phone, LogOut, ChevronDown, Lock,
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -241,8 +241,32 @@ function Sidebar() {
   );
 }
 
+const STATUS_OPTIONS = [
+  { value: "new", label: "Lead nou", color: "bg-foreground text-background" },
+  { value: "contacted", label: "Contactat", color: "bg-primary text-primary-foreground" },
+  { value: "no_response", label: "Nu raspunde", color: "bg-yellow-500 text-black" },
+  { value: "not_interested", label: "Neinteresat", color: "bg-zinc-500 text-white" },
+] as const;
+type StatusValue = typeof STATUS_OPTIONS[number]["value"];
+
 function LeadCard({ lead }: { lead: Lead }) {
   const [note, setNote] = useState("");
+  const [status, setStatus] = useState<StatusValue>("new");
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(`kasa:lead:${lead.id}:status`);
+    if (saved) setStatus(saved as StatusValue);
+  }, [lead.id]);
+
+  const updateStatus = (s: StatusValue) => {
+    setStatus(s);
+    localStorage.setItem(`kasa:lead:${lead.id}:status`, s);
+    setOpen(false);
+  };
+
+  const current = STATUS_OPTIONS.find((s) => s.value === status)!;
+
   return (
     <article className="bg-card border border-border rounded-md shadow-sm mb-5">
       <div className="flex gap-4 p-4 border-b border-border">
@@ -264,7 +288,31 @@ function LeadCard({ lead }: { lead: Lead }) {
           <div className="mt-2 flex flex-wrap gap-3 text-xs">
             <a href="#" className="flex items-center gap-1 text-primary hover:underline"><Download className="h-3.5 w-3.5"/> descarca poze</a>
             <a href="#" className="flex items-center gap-1 text-primary hover:underline"><MapPin className="h-3.5 w-3.5"/> Vezi pe harta</a>
-            <span className="ml-auto inline-flex items-center px-2 py-0.5 rounded bg-foreground text-background text-[10px] font-semibold tracking-wide">PRIMA APARITIE</span>
+            <div className="ml-auto relative">
+              <button
+                onClick={() => setOpen((o) => !o)}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wide ${current.color}`}
+              >
+                {current.label.toUpperCase()}
+                <ChevronDown className="h-3 w-3"/>
+              </button>
+              {open && (
+                <div className="absolute right-0 mt-1 z-20 bg-card border border-border rounded shadow-lg min-w-40 py-1">
+                  {STATUS_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => updateStatus(opt.value)}
+                      className={`w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-2 ${
+                        opt.value === status ? "font-bold" : ""
+                      }`}
+                    >
+                      <span className={`inline-block h-2 w-2 rounded-full ${opt.color}`} />
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
         <button className="p-1 h-fit text-muted-foreground hover:text-foreground"><MoreVertical className="h-5 w-5"/></button>
@@ -321,7 +369,80 @@ function LeadCard({ lead }: { lead: Lead }) {
   );
 }
 
+function LoginScreen({ onLogin }: { onLogin: () => void }) {
+  const [user, setUser] = useState("");
+  const [pass, setPass] = useState("");
+  const [error, setError] = useState("");
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (user === "KASA" && pass === "Kasaconsult1@") {
+      localStorage.setItem("kasa:auth", "1");
+      onLogin();
+    } else {
+      setError("Utilizator sau parola incorecte.");
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-sidebar text-sidebar-foreground flex items-center justify-center px-4">
+      <form onSubmit={submit} className="w-full max-w-sm bg-card text-card-foreground rounded-lg shadow-2xl p-6 border-t-4 border-primary">
+        <div className="flex items-center gap-2 mb-6">
+          <div className="h-10 w-10 rounded-md bg-primary flex items-center justify-center text-primary-foreground font-black text-lg">K</div>
+          <div className="leading-tight">
+            <div className="font-black tracking-wide">KASA</div>
+            <div className="text-[10px] tracking-[0.2em] text-muted-foreground">CONSULTANTA</div>
+          </div>
+        </div>
+        <h1 className="text-lg font-bold mb-1">Autentificare CRM</h1>
+        <p className="text-xs text-muted-foreground mb-5">Introdu credentialele pentru a continua.</p>
+
+        <label className="block text-xs font-semibold mb-1">Utilizator</label>
+        <input
+          value={user}
+          onChange={(e) => setUser(e.target.value)}
+          className="w-full border border-input rounded px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-ring"
+          autoFocus
+        />
+
+        <label className="block text-xs font-semibold mb-1">Parola</label>
+        <input
+          type="password"
+          value={pass}
+          onChange={(e) => setPass(e.target.value)}
+          className="w-full border border-input rounded px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+
+        {error && <div className="text-xs text-primary font-semibold mb-3">{error}</div>}
+
+        <button
+          type="submit"
+          className="w-full bg-primary text-primary-foreground font-semibold py-2 rounded hover:bg-primary/90 flex items-center justify-center gap-2"
+        >
+          <Lock className="h-4 w-4"/> Conecteaza-te
+        </button>
+      </form>
+    </div>
+  );
+}
+
 function Index() {
+  const [authed, setAuthed] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    setAuthed(localStorage.getItem("kasa:auth") === "1");
+    setReady(true);
+  }, []);
+
+  const logout = () => {
+    localStorage.removeItem("kasa:auth");
+    setAuthed(false);
+  };
+
+  if (!ready) return null;
+  if (!authed) return <LoginScreen onLogin={() => setAuthed(true)} />;
+
   return (
     <div className="min-h-screen bg-muted/30 flex">
       <Sidebar />
@@ -342,6 +463,13 @@ function Index() {
             </div>
             <button className="bg-primary text-primary-foreground text-sm font-semibold px-3 py-1.5 rounded hover:bg-primary/90">
               + Lead nou
+            </button>
+            <button
+              onClick={logout}
+              title="Iesire"
+              className="p-2 rounded border border-border text-muted-foreground hover:text-primary hover:border-primary"
+            >
+              <LogOut className="h-4 w-4"/>
             </button>
           </div>
         </header>
