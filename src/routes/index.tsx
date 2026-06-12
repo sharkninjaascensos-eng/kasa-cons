@@ -429,15 +429,51 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
 function Index() {
   const [authed, setAuthed] = useState(false);
   const [ready, setReady] = useState(false);
+  const [leads, setLeads] = useState<Lead[]>(defaultLeads);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
 
   useEffect(() => {
     setAuthed(localStorage.getItem("kasa:auth") === "1");
     setReady(true);
+    const saved = localStorage.getItem("kasa:leads");
+    if (saved) {
+      try { setLeads(JSON.parse(saved)); } catch {}
+    }
   }, []);
 
   const logout = () => {
     localStorage.removeItem("kasa:auth");
     setAuthed(false);
+  };
+
+  const persistLeads = (next: Lead[]) => {
+    setLeads(next);
+    localStorage.setItem("kasa:leads", JSON.stringify(next));
+  };
+
+  const onCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const text = await file.text();
+    try {
+      const imported = parseCsvToLeads(text);
+      if (!imported.length) {
+        setImportMsg("Niciun lead gasit in CSV.");
+        return;
+      }
+      persistLeads([...imported, ...leads]);
+      setImportMsg(`${imported.length} leaduri importate.`);
+      setTimeout(() => setImportMsg(null), 4000);
+    } catch (err) {
+      setImportMsg("Eroare la import CSV.");
+    }
+  };
+
+  const resetLeads = () => {
+    if (!confirm("Resetezi lista la leadurile demo?")) return;
+    localStorage.removeItem("kasa:leads");
+    setLeads(defaultLeads);
   };
 
   if (!ready) return null;
@@ -461,8 +497,16 @@ function Index() {
                 className="pl-8 pr-3 py-1.5 text-sm border border-input rounded w-56 focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
-            <button className="bg-primary text-primary-foreground text-sm font-semibold px-3 py-1.5 rounded hover:bg-primary/90">
-              + Lead nou
+            <label className="bg-primary text-primary-foreground text-sm font-semibold px-3 py-1.5 rounded hover:bg-primary/90 cursor-pointer flex items-center gap-1">
+              <Upload className="h-4 w-4"/> Incarca CSV
+              <input type="file" accept=".csv,text/csv" className="hidden" onChange={onCsvUpload}/>
+            </label>
+            <button
+              onClick={resetLeads}
+              title="Resetare la demo"
+              className="p-2 rounded border border-border text-muted-foreground hover:text-primary hover:border-primary"
+            >
+              <Trash2 className="h-4 w-4"/>
             </button>
             <button
               onClick={logout}
@@ -475,6 +519,16 @@ function Index() {
         </header>
 
         <main className="p-5 max-w-5xl w-full mx-auto">
+          {importMsg && (
+            <div className="mb-3 px-3 py-2 text-sm rounded border border-primary/30 bg-primary/10 text-primary font-semibold">
+              {importMsg}
+            </div>
+          )}
+          <div className="mb-4 text-xs text-muted-foreground bg-card border border-border rounded p-3">
+            <strong className="text-foreground">Format CSV acceptat:</strong> prima linie = header. Coloane recunoscute:
+            <code className="text-primary"> title, type, location, updated, posted, source, price, area, year, category, name, phone, email, description, image</code>.
+            Doar <code className="text-primary">title</code> este obligatoriu.
+          </div>
           <div className="mb-4 flex items-baseline justify-between">
             <h1 className="text-xl font-black tracking-tight">Particulari CRM</h1>
             <span className="text-xs text-muted-foreground">{leads.length} leaduri afisate</span>
