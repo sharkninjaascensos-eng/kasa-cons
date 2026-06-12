@@ -303,7 +303,9 @@ function parseCsvToLeads(text: string): Lead[] {
 }
 
 async function extractPdfText(file: File): Promise<string[]> {
+  // @ts-ignore - no types shipped for direct build path
   const pdfjs: any = await import("pdfjs-dist/build/pdf.mjs");
+  // @ts-ignore
   const workerSrc = (await import("pdfjs-dist/build/pdf.worker.mjs?url")).default;
   pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
   const buf = await file.arrayBuffer();
