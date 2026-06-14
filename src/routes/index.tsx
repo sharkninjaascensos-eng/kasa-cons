@@ -7,6 +7,8 @@ import {
   MapPin, Download, Flag, Bookmark, Phone, LogOut, ChevronDown, Lock, Upload, Trash2, FileText as FileTextIcon,
 } from "lucide-react";
 import laundryBg from "@/assets/laundry-bg.png.asset.json";
+import { CoachPanel } from "@/components/CoachPanel";
+import { Brain } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
