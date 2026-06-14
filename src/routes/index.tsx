@@ -323,9 +323,30 @@ function parseCsvToLeads(text: string): Lead[] {
       email: row.email || undefined,
       description: row.description || row.descriere || "",
       image: row.image || row.imagine || "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=400&h=300&fit=crop",
+      industry: normalizeIndustry(row.industry || row.industrie),
+      subindustry: normalizeSub(row.subindustry || row.subindustrie || row.sub),
     });
   }
   return leads;
+}
+
+function normalizeIndustry(v?: string): IndustryValue | undefined {
+  if (!v) return undefined;
+  const s = v.toLowerCase().trim();
+  if (/laund|spalat/.test(s)) return "laundry";
+  if (/real.?estate|imobil/.test(s)) return "real_estate";
+  if (/clean|curat/.test(s)) return "cleaners";
+  if (/horeca|website|web/.test(s)) return "horeca";
+  return undefined;
+}
+function normalizeSub(v?: string): SubIndustryValue | undefined {
+  if (!v) return undefined;
+  const s = v.toLowerCase().trim();
+  if (/grenke|leasing/.test(s)) return "grenke";
+  if (/refer/.test(s)) return "referral";
+  if (/sale|vanz/.test(s)) return "sales";
+  if (/rent|inchir/.test(s)) return "renting";
+  return undefined;
 }
 
 async function extractPdfText(file: File): Promise<string[]> {
