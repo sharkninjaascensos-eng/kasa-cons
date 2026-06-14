@@ -471,10 +471,14 @@ function LeadCard({ lead }: { lead: Lead }) {
   const [note, setNote] = useState("");
   const [status, setStatus] = useState<StatusValue>("new");
   const [open, setOpen] = useState(false);
+  const [stage, setStage] = useState<PipelineStage>("prospect");
+  const [stageOpen, setStageOpen] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem(`kasa:lead:${lead.id}:status`);
     if (saved) setStatus(saved as StatusValue);
+    const s = localStorage.getItem(`kasa:lead:${lead.id}:stage`);
+    if (s) setStage(s as PipelineStage);
   }, [lead.id]);
 
   const updateStatus = (s: StatusValue) => {
@@ -482,8 +486,14 @@ function LeadCard({ lead }: { lead: Lead }) {
     localStorage.setItem(`kasa:lead:${lead.id}:status`, s);
     setOpen(false);
   };
+  const updateStage = (s: PipelineStage) => {
+    setStage(s);
+    localStorage.setItem(`kasa:lead:${lead.id}:stage`, s);
+    setStageOpen(false);
+  };
 
   const current = STATUS_OPTIONS.find((s) => s.value === status)!;
+  const currentStage = PIPELINE_STAGES.find((s) => s.value === stage)!;
 
   return (
     <article className="bg-card border border-border rounded-md shadow-sm mb-5">
