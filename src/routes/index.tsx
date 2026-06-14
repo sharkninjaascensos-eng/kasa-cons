@@ -797,7 +797,19 @@ function Index() {
           </div>
         </header>
 
-        <main className="p-5 max-w-5xl w-full mx-auto">
+        <main
+          className="p-5 max-w-5xl w-full mx-auto relative"
+          style={
+            industry === "laundry"
+              ? {
+                  backgroundImage: `linear-gradient(rgba(255,255,255,0.88), rgba(255,255,255,0.92)), url(${laundryBg.url})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  backgroundAttachment: "fixed",
+                }
+              : undefined
+          }
+        >
           <div className="mb-4 border-b border-border flex flex-wrap gap-1">
             {INDUSTRIES.map((ind) => {
               const active = ind.value === industry;
