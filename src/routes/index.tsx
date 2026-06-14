@@ -686,6 +686,8 @@ function Index() {
   const [ready, setReady] = useState(false);
   const [leads, setLeads] = useState<Lead[]>(defaultLeads);
   const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [industry, setIndustry] = useState<IndustryValue>("real_estate");
+  const [sub, setSub] = useState<SubIndustryValue | "all">("all");
 
   useEffect(() => {
     setAuthed(localStorage.getItem("kasa:auth") === "1");
@@ -741,6 +743,14 @@ function Index() {
 
   if (!ready) return null;
   if (!authed) return <LoginScreen onLogin={() => setAuthed(true)} />;
+
+  const activeIndustry = INDUSTRIES.find((i) => i.value === industry)!;
+  const filtered = leads.filter((l) => {
+    const li = l.industry ?? "real_estate";
+    if (li !== industry) return false;
+    if (sub !== "all" && l.subindustry && l.subindustry !== sub) return false;
+    return true;
+  });
 
   return (
     <div className="min-h-screen bg-muted/30 flex">
