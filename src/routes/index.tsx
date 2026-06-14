@@ -620,10 +620,38 @@ function LeadCard({ lead }: { lead: Lead }) {
           placeholder="Observatii..."
           className="w-full min-h-24 border border-input rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-y"
         />
-        <button className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-foreground hover:text-primary">
-          <Bookmark className="h-3.5 w-3.5"/> Salveaza Observatii
-        </button>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button className="inline-flex items-center gap-1 text-xs font-semibold text-foreground hover:text-primary">
+            <Bookmark className="h-3.5 w-3.5"/> Salveaza Observatii
+          </button>
+          <button
+            onClick={() => setCoachOpen(true)}
+            className="ml-auto inline-flex items-center gap-1.5 text-xs font-bold bg-foreground text-background px-3 py-1.5 rounded hover:bg-primary transition-colors"
+          >
+            <Brain className="h-3.5 w-3.5"/> Coach AI
+          </button>
+        </div>
       </div>
+      {coachOpen && (
+        <CoachPanel
+          onClose={() => setCoachOpen(false)}
+          lead={{
+            title: lead.title,
+            type: lead.type,
+            location: lead.location,
+            industry: lead.industry,
+            subindustry: lead.subindustry,
+            name: lead.name,
+            phone: lead.phone,
+            email: lead.email,
+            price: lead.price,
+            area: lead.area,
+            status: STATUS_OPTIONS.find((s) => s.value === status)?.label,
+            stage: PIPELINE_STAGES.find((s) => s.value === stage)?.label,
+            description: lead.description,
+          }}
+        />
+      )}
     </article>
   );
 }
