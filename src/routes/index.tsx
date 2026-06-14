@@ -516,7 +516,33 @@ function LeadCard({ lead }: { lead: Lead }) {
           <div className="mt-2 flex flex-wrap gap-3 text-xs">
             <a href="#" className="flex items-center gap-1 text-primary hover:underline"><Download className="h-3.5 w-3.5"/> descarca poze</a>
             <a href="#" className="flex items-center gap-1 text-primary hover:underline"><MapPin className="h-3.5 w-3.5"/> Vezi pe harta</a>
-            <div className="ml-auto relative">
+            <div className="ml-auto flex items-center gap-2 relative">
+              <div className="relative">
+                <button
+                  onClick={() => setStageOpen((o) => !o)}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wide ${currentStage.color}`}
+                >
+                  {currentStage.label.toUpperCase()}
+                  <ChevronDown className="h-3 w-3"/>
+                </button>
+                {stageOpen && (
+                  <div className="absolute right-0 mt-1 z-20 bg-card border border-border rounded shadow-lg min-w-40 py-1">
+                    {PIPELINE_STAGES.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => updateStage(opt.value)}
+                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-2 ${
+                          opt.value === stage ? "font-bold" : ""
+                        }`}
+                      >
+                        <span className={`inline-block h-2 w-2 rounded-full ${opt.color}`}/>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="relative">
               <button
                 onClick={() => setOpen((o) => !o)}
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wide ${current.color}`}
@@ -540,6 +566,7 @@ function LeadCard({ lead }: { lead: Lead }) {
                   ))}
                 </div>
               )}
+              </div>
             </div>
           </div>
         </div>
