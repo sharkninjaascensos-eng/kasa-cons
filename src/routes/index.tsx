@@ -476,6 +476,7 @@ function LeadCard({ lead }: { lead: Lead }) {
   const [open, setOpen] = useState(false);
   const [stage, setStage] = useState<PipelineStage>("prospect");
   const [stageOpen, setStageOpen] = useState(false);
+  const [coachOpen, setCoachOpen] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem(`kasa:lead:${lead.id}:status`);
