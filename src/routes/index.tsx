@@ -6,6 +6,7 @@ import {
   Megaphone, Calculator, DollarSign, Mail, Plug, Menu, MoreVertical, Search,
   MapPin, Download, Flag, Bookmark, Phone, LogOut, ChevronDown, Lock, Upload, Trash2, FileText as FileTextIcon,
 } from "lucide-react";
+import laundryBg from "@/assets/laundry-bg.png.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({
