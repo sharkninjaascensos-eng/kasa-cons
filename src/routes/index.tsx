@@ -75,7 +75,33 @@ type Lead = {
   email?: string;
   description: string;
   image: string;
+  industry?: IndustryValue;
+  subindustry?: SubIndustryValue;
 };
+
+const INDUSTRIES = [
+  { value: "laundry", label: "Laundry", subs: [
+    { value: "grenke", label: "Operational Leasing (Grenke)" },
+    { value: "referral", label: "Referral (Real Estate)" },
+  ]},
+  { value: "real_estate", label: "Real Estate", subs: [
+    { value: "sales", label: "Sales" },
+    { value: "renting", label: "Renting" },
+  ]},
+  { value: "cleaners", label: "Professional Cleaners", subs: [] },
+  { value: "horeca", label: "Website HORECA", subs: [] },
+] as const;
+type IndustryValue = typeof INDUSTRIES[number]["value"];
+type SubIndustryValue = "grenke" | "referral" | "sales" | "renting";
+
+const PIPELINE_STAGES = [
+  { value: "prospect", label: "Prospect", color: "bg-zinc-500 text-white" },
+  { value: "qualified", label: "Qualified", color: "bg-blue-600 text-white" },
+  { value: "proposal", label: "Proposal", color: "bg-yellow-500 text-black" },
+  { value: "won", label: "Won", color: "bg-green-600 text-white" },
+  { value: "lost", label: "Lost", color: "bg-primary text-primary-foreground" },
+] as const;
+type PipelineStage = typeof PIPELINE_STAGES[number]["value"];
 
 const defaultLeads: Lead[] = [
   {
