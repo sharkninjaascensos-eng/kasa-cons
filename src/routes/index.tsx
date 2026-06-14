@@ -797,6 +797,53 @@ function Index() {
         </header>
 
         <main className="p-5 max-w-5xl w-full mx-auto">
+          <div className="mb-4 border-b border-border flex flex-wrap gap-1">
+            {INDUSTRIES.map((ind) => {
+              const active = ind.value === industry;
+              const count = leads.filter((l) => (l.industry ?? "real_estate") === ind.value).length;
+              return (
+                <button
+                  key={ind.value}
+                  onClick={() => { setIndustry(ind.value); setSub("all"); }}
+                  className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+                    active
+                      ? "border-primary text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {ind.label} <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-muted">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+          {activeIndustry.subs.length > 0 && (
+            <div className="mb-4 flex flex-wrap gap-2">
+              <button
+                onClick={() => setSub("all")}
+                className={`px-3 py-1 text-xs rounded-full border ${
+                  sub === "all"
+                    ? "bg-foreground text-background border-foreground"
+                    : "border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Toate
+              </button>
+              {activeIndustry.subs.map((s) => (
+                <button
+                  key={s.value}
+                  onClick={() => setSub(s.value as SubIndustryValue)}
+                  className={`px-3 py-1 text-xs rounded-full border ${
+                    sub === s.value
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {importMsg && (
             <div className="mb-3 px-3 py-2 text-sm rounded border border-primary/30 bg-primary/10 text-primary font-semibold">
               {importMsg}
@@ -805,18 +852,27 @@ function Index() {
           <div className="mb-4 text-xs text-muted-foreground bg-card border border-border rounded p-3 space-y-1">
             <div>
               <strong className="text-foreground">CSV:</strong> prima linie = header. Coloane:
-              <code className="text-primary"> title, type, location, updated, posted, source, price, area, year, name, phone, email, description, image</code>.
+              <code className="text-primary"> title, type, location, updated, posted, source, price, area, year, name, phone, email, description, image, industry, subindustry</code>.
+            </div>
+            <div>
+              <strong className="text-foreground">industry:</strong> <code>laundry</code> | <code>real_estate</code> | <code>cleaners</code> | <code>horeca</code> · <strong>subindustry:</strong> <code>grenke</code> | <code>referral</code> | <code>sales</code> | <code>renting</code>
             </div>
             <div className="flex items-start gap-1">
               <FileTextIcon className="h-3.5 w-3.5 mt-0.5 text-primary shrink-0"/>
-              <span><strong className="text-foreground">PDF:</strong> exporturi din CRM imobiliar (Imoflex / Particulari CRM). Se detecteaza automat titlu, locatie, pret, suprafata, contact si descriere.</span>
+              <span><strong className="text-foreground">PDF:</strong> exporturi din CRM imobiliar. Se detecteaza automat titlu, locatie, pret, suprafata, contact si descriere (vor fi taggate ca Real Estate).</span>
             </div>
           </div>
           <div className="mb-4 flex items-baseline justify-between">
-            <h1 className="text-xl font-black tracking-tight">Particulari CRM</h1>
-            <span className="text-xs text-muted-foreground">{leads.length} leaduri afisate</span>
+            <h1 className="text-xl font-black tracking-tight">{activeIndustry.label} — Closing Sales CRM</h1>
+            <span className="text-xs text-muted-foreground">{filtered.length} leaduri afisate</span>
           </div>
-          {leads.map((l) => <LeadCard key={l.id} lead={l} />)}
+          {filtered.length === 0 ? (
+            <div className="text-center py-12 text-sm text-muted-foreground bg-card border border-dashed border-border rounded">
+              Niciun lead pentru {activeIndustry.label}. Incarca un CSV cu coloana <code className="text-primary">industry</code>.
+            </div>
+          ) : (
+            filtered.map((l) => <LeadCard key={l.id} lead={l} />)
+          )}
         </main>
 
         <footer className="text-center text-xs text-muted-foreground py-4 border-t border-border bg-card">
