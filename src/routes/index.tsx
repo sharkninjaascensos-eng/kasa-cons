@@ -75,7 +75,33 @@ type Lead = {
   email?: string;
   description: string;
   image: string;
+  industry?: IndustryValue;
+  subindustry?: SubIndustryValue;
 };
+
+const INDUSTRIES = [
+  { value: "laundry", label: "Laundry", subs: [
+    { value: "grenke", label: "Operational Leasing (Grenke)" },
+    { value: "referral", label: "Referral (Real Estate)" },
+  ]},
+  { value: "real_estate", label: "Real Estate", subs: [
+    { value: "sales", label: "Sales" },
+    { value: "renting", label: "Renting" },
+  ]},
+  { value: "cleaners", label: "Professional Cleaners", subs: [] },
+  { value: "horeca", label: "Website HORECA", subs: [] },
+] as const;
+type IndustryValue = typeof INDUSTRIES[number]["value"];
+type SubIndustryValue = "grenke" | "referral" | "sales" | "renting";
+
+const PIPELINE_STAGES = [
+  { value: "prospect", label: "Prospect", color: "bg-zinc-500 text-white" },
+  { value: "qualified", label: "Qualified", color: "bg-blue-600 text-white" },
+  { value: "proposal", label: "Proposal", color: "bg-yellow-500 text-black" },
+  { value: "won", label: "Won", color: "bg-green-600 text-white" },
+  { value: "lost", label: "Lost", color: "bg-primary text-primary-foreground" },
+] as const;
+type PipelineStage = typeof PIPELINE_STAGES[number]["value"];
 
 const defaultLeads: Lead[] = [
   {
@@ -297,9 +323,30 @@ function parseCsvToLeads(text: string): Lead[] {
       email: row.email || undefined,
       description: row.description || row.descriere || "",
       image: row.image || row.imagine || "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=400&h=300&fit=crop",
+      industry: normalizeIndustry(row.industry || row.industrie),
+      subindustry: normalizeSub(row.subindustry || row.subindustrie || row.sub),
     });
   }
   return leads;
+}
+
+function normalizeIndustry(v?: string): IndustryValue | undefined {
+  if (!v) return undefined;
+  const s = v.toLowerCase().trim();
+  if (/laund|spalat/.test(s)) return "laundry";
+  if (/real.?estate|imobil/.test(s)) return "real_estate";
+  if (/clean|curat/.test(s)) return "cleaners";
+  if (/horeca|website|web/.test(s)) return "horeca";
+  return undefined;
+}
+function normalizeSub(v?: string): SubIndustryValue | undefined {
+  if (!v) return undefined;
+  const s = v.toLowerCase().trim();
+  if (/grenke|leasing/.test(s)) return "grenke";
+  if (/refer/.test(s)) return "referral";
+  if (/sale|vanz/.test(s)) return "sales";
+  if (/rent|inchir/.test(s)) return "renting";
+  return undefined;
 }
 
 async function extractPdfText(file: File): Promise<string[]> {
@@ -424,10 +471,14 @@ function LeadCard({ lead }: { lead: Lead }) {
   const [note, setNote] = useState("");
   const [status, setStatus] = useState<StatusValue>("new");
   const [open, setOpen] = useState(false);
+  const [stage, setStage] = useState<PipelineStage>("prospect");
+  const [stageOpen, setStageOpen] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem(`kasa:lead:${lead.id}:status`);
     if (saved) setStatus(saved as StatusValue);
+    const s = localStorage.getItem(`kasa:lead:${lead.id}:stage`);
+    if (s) setStage(s as PipelineStage);
   }, [lead.id]);
 
   const updateStatus = (s: StatusValue) => {
@@ -435,8 +486,14 @@ function LeadCard({ lead }: { lead: Lead }) {
     localStorage.setItem(`kasa:lead:${lead.id}:status`, s);
     setOpen(false);
   };
+  const updateStage = (s: PipelineStage) => {
+    setStage(s);
+    localStorage.setItem(`kasa:lead:${lead.id}:stage`, s);
+    setStageOpen(false);
+  };
 
   const current = STATUS_OPTIONS.find((s) => s.value === status)!;
+  const currentStage = PIPELINE_STAGES.find((s) => s.value === stage)!;
 
   return (
     <article className="bg-card border border-border rounded-md shadow-sm mb-5">
@@ -459,7 +516,33 @@ function LeadCard({ lead }: { lead: Lead }) {
           <div className="mt-2 flex flex-wrap gap-3 text-xs">
             <a href="#" className="flex items-center gap-1 text-primary hover:underline"><Download className="h-3.5 w-3.5"/> descarca poze</a>
             <a href="#" className="flex items-center gap-1 text-primary hover:underline"><MapPin className="h-3.5 w-3.5"/> Vezi pe harta</a>
-            <div className="ml-auto relative">
+            <div className="ml-auto flex items-center gap-2 relative">
+              <div className="relative">
+                <button
+                  onClick={() => setStageOpen((o) => !o)}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wide ${currentStage.color}`}
+                >
+                  {currentStage.label.toUpperCase()}
+                  <ChevronDown className="h-3 w-3"/>
+                </button>
+                {stageOpen && (
+                  <div className="absolute right-0 mt-1 z-20 bg-card border border-border rounded shadow-lg min-w-40 py-1">
+                    {PIPELINE_STAGES.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => updateStage(opt.value)}
+                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-2 ${
+                          opt.value === stage ? "font-bold" : ""
+                        }`}
+                      >
+                        <span className={`inline-block h-2 w-2 rounded-full ${opt.color}`}/>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="relative">
               <button
                 onClick={() => setOpen((o) => !o)}
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wide ${current.color}`}
@@ -483,6 +566,7 @@ function LeadCard({ lead }: { lead: Lead }) {
                   ))}
                 </div>
               )}
+              </div>
             </div>
           </div>
         </div>
@@ -602,6 +686,8 @@ function Index() {
   const [ready, setReady] = useState(false);
   const [leads, setLeads] = useState<Lead[]>(defaultLeads);
   const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [industry, setIndustry] = useState<IndustryValue>("real_estate");
+  const [sub, setSub] = useState<SubIndustryValue | "all">("all");
 
   useEffect(() => {
     setAuthed(localStorage.getItem("kasa:auth") === "1");
@@ -658,6 +744,14 @@ function Index() {
   if (!ready) return null;
   if (!authed) return <LoginScreen onLogin={() => setAuthed(true)} />;
 
+  const activeIndustry = INDUSTRIES.find((i) => i.value === industry)!;
+  const filtered = leads.filter((l) => {
+    const li = l.industry ?? "real_estate";
+    if (li !== industry) return false;
+    if (sub !== "all" && l.subindustry && l.subindustry !== sub) return false;
+    return true;
+  });
+
   return (
     <div className="min-h-screen bg-muted/30 flex">
       <Sidebar />
@@ -703,6 +797,53 @@ function Index() {
         </header>
 
         <main className="p-5 max-w-5xl w-full mx-auto">
+          <div className="mb-4 border-b border-border flex flex-wrap gap-1">
+            {INDUSTRIES.map((ind) => {
+              const active = ind.value === industry;
+              const count = leads.filter((l) => (l.industry ?? "real_estate") === ind.value).length;
+              return (
+                <button
+                  key={ind.value}
+                  onClick={() => { setIndustry(ind.value); setSub("all"); }}
+                  className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+                    active
+                      ? "border-primary text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {ind.label} <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-muted">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+          {activeIndustry.subs.length > 0 && (
+            <div className="mb-4 flex flex-wrap gap-2">
+              <button
+                onClick={() => setSub("all")}
+                className={`px-3 py-1 text-xs rounded-full border ${
+                  sub === "all"
+                    ? "bg-foreground text-background border-foreground"
+                    : "border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Toate
+              </button>
+              {activeIndustry.subs.map((s) => (
+                <button
+                  key={s.value}
+                  onClick={() => setSub(s.value as SubIndustryValue)}
+                  className={`px-3 py-1 text-xs rounded-full border ${
+                    sub === s.value
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {importMsg && (
             <div className="mb-3 px-3 py-2 text-sm rounded border border-primary/30 bg-primary/10 text-primary font-semibold">
               {importMsg}
@@ -711,18 +852,27 @@ function Index() {
           <div className="mb-4 text-xs text-muted-foreground bg-card border border-border rounded p-3 space-y-1">
             <div>
               <strong className="text-foreground">CSV:</strong> prima linie = header. Coloane:
-              <code className="text-primary"> title, type, location, updated, posted, source, price, area, year, name, phone, email, description, image</code>.
+              <code className="text-primary"> title, type, location, updated, posted, source, price, area, year, name, phone, email, description, image, industry, subindustry</code>.
+            </div>
+            <div>
+              <strong className="text-foreground">industry:</strong> <code>laundry</code> | <code>real_estate</code> | <code>cleaners</code> | <code>horeca</code> · <strong>subindustry:</strong> <code>grenke</code> | <code>referral</code> | <code>sales</code> | <code>renting</code>
             </div>
             <div className="flex items-start gap-1">
               <FileTextIcon className="h-3.5 w-3.5 mt-0.5 text-primary shrink-0"/>
-              <span><strong className="text-foreground">PDF:</strong> exporturi din CRM imobiliar (Imoflex / Particulari CRM). Se detecteaza automat titlu, locatie, pret, suprafata, contact si descriere.</span>
+              <span><strong className="text-foreground">PDF:</strong> exporturi din CRM imobiliar. Se detecteaza automat titlu, locatie, pret, suprafata, contact si descriere (vor fi taggate ca Real Estate).</span>
             </div>
           </div>
           <div className="mb-4 flex items-baseline justify-between">
-            <h1 className="text-xl font-black tracking-tight">Particulari CRM</h1>
-            <span className="text-xs text-muted-foreground">{leads.length} leaduri afisate</span>
+            <h1 className="text-xl font-black tracking-tight">{activeIndustry.label} — Closing Sales CRM</h1>
+            <span className="text-xs text-muted-foreground">{filtered.length} leaduri afisate</span>
           </div>
-          {leads.map((l) => <LeadCard key={l.id} lead={l} />)}
+          {filtered.length === 0 ? (
+            <div className="text-center py-12 text-sm text-muted-foreground bg-card border border-dashed border-border rounded">
+              Niciun lead pentru {activeIndustry.label}. Incarca un CSV cu coloana <code className="text-primary">industry</code>.
+            </div>
+          ) : (
+            filtered.map((l) => <LeadCard key={l.id} lead={l} />)
+          )}
         </main>
 
         <footer className="text-center text-xs text-muted-foreground py-4 border-t border-border bg-card">
