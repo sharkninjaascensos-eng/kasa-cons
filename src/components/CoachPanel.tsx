@@ -1,7 +1,7 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Brain, Send, X, Sparkles, AlertTriangle } from "lucide-react";
+import { Brain, Send, X, Sparkles, AlertTriangle, Mic } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 export type CoachLead = {
@@ -32,14 +32,15 @@ const QUICK_PROMPTS = [
 
 export function CoachPanel({ lead, onClose }: { lead: CoachLead; onClose: () => void }) {
   const [language, setLanguage] = useState<"en" | "ro">("ro");
+  const [vocarooUrl, setVocarooUrl] = useState("");
 
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/coach",
-        body: { lead, language },
+        body: { lead, language, vocarooUrl },
       }),
-    [lead, language],
+    [lead, language, vocarooUrl],
   );
 
   const { messages, sendMessage, status, error } = useChat({
@@ -67,6 +68,8 @@ export function CoachPanel({ lead, onClose }: { lead: CoachLead; onClose: () => 
     setInput("");
     inputRef.current?.focus();
   };
+
+  const vocarooValid = /(?:voca\.ro|vocaroo\.com)\/(?:i\/)?[A-Za-z0-9]+/.test(vocarooUrl.trim());
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4">
@@ -174,8 +177,33 @@ export function CoachPanel({ lead, onClose }: { lead: CoachLead; onClose: () => 
             e.preventDefault();
             submit(input);
           }}
-          className="border-t border-border p-2 flex gap-2 bg-card"
+          className="border-t border-border p-2 flex flex-col gap-2 bg-card"
         >
+          <div className="flex items-center gap-2">
+            <div className={`flex items-center gap-1 px-2 rounded border ${vocarooUrl && !vocarooValid ? "border-red-500" : "border-input"} flex-1`}>
+              <Mic className={`h-3.5 w-3.5 ${vocarooValid ? "text-primary" : "text-muted-foreground"}`} />
+              <input
+                type="url"
+                value={vocarooUrl}
+                onChange={(e) => setVocarooUrl(e.target.value)}
+                placeholder="Lipeste link Vocaroo (ex: https://voca.ro/1fV7rqBxjFPH)"
+                className="flex-1 text-xs py-1.5 bg-transparent focus:outline-none"
+              />
+              {vocarooUrl && (
+                <button
+                  type="button"
+                  onClick={() => setVocarooUrl("")}
+                  className="text-[10px] text-muted-foreground hover:text-foreground"
+                >
+                  clear
+                </button>
+              )}
+            </div>
+            {vocarooValid && (
+              <span className="text-[10px] font-bold text-primary">AUDIO ATASAT</span>
+            )}
+          </div>
+          <div className="flex gap-2">
           <textarea
             ref={inputRef}
             value={input}
@@ -186,7 +214,7 @@ export function CoachPanel({ lead, onClose }: { lead: CoachLead; onClose: () => 
                 submit(input);
               }
             }}
-            placeholder="Intreaba coach-ul (Enter trimite)..."
+            placeholder={vocarooValid ? "Ce vrei sa analizez in inregistrare? (Enter trimite)" : "Intreaba coach-ul (Enter trimite)..."}
             rows={2}
             disabled={loading}
             className="flex-1 resize-none text-sm border border-input rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
@@ -198,6 +226,7 @@ export function CoachPanel({ lead, onClose }: { lead: CoachLead; onClose: () => 
           >
             <Send className="h-4 w-4"/>
           </button>
+          </div>
         </form>
       </div>
     </div>

@@ -64,6 +64,7 @@ export const Route = createFileRoute("/api/coach")({
           messages?: UIMessage[];
           lead?: LeadCtx;
           language?: "en" | "ro";
+          vocarooUrl?: string;
         };
         if (!Array.isArray(body.messages)) {
           return new Response("messages required", { status: 400 });
@@ -71,11 +72,41 @@ export const Route = createFileRoute("/api/coach")({
         const key = process.env.LOVABLE_API_KEY;
         if (!key) return new Response("Missing LOVABLE_API_KEY", { status: 500 });
 
+        // If a Vocaroo URL is attached, resolve to the mp3 CDN and inject
+        // an audio file part into the LAST user message so the model can
+        // "listen" to the call recording alongside the rep's question.
+        const messages = [...body.messages];
+        const voc = (body.vocarooUrl ?? "").trim();
+        if (voc) {
+          const m = voc.match(/(?:voca\.ro|vocaroo\.com)\/(?:i\/)?([A-Za-z0-9]+)/);
+          const id = m?.[1];
+          if (id) {
+            const audioUrl = `https://media.vocaroo.com/mp3/${id}`;
+            for (let i = messages.length - 1; i >= 0; i--) {
+              if (messages[i].role === "user") {
+                const parts = [
+                  ...messages[i].parts,
+                  {
+                    type: "file" as const,
+                    mediaType: "audio/mpeg",
+                    url: audioUrl,
+                    filename: `vocaroo-${id}.mp3`,
+                  },
+                ];
+                messages[i] = { ...messages[i], parts } as UIMessage;
+                break;
+              }
+            }
+          }
+        }
+
         const gateway = createLovableAiGatewayProvider(key);
         const result = streamText({
           model: gateway("google/gemini-3-flash-preview"),
-          system: systemPrompt(body.lead, body.language),
-          messages: await convertToModelMessages(body.messages),
+          system: systemPrompt(body.lead, body.language) + (voc
+            ? "\n\nThe user attached a Vocaroo call recording as an audio file. Transcribe key moments briefly, analyze tone/emotion/objections you actually hear, then apply the standard 5-section output tailored to that recording."
+            : ""),
+          messages: await convertToModelMessages(messages),
         });
 
         return result.toUIMessageStreamResponse({ originalMessages: body.messages });
