@@ -25,6 +25,9 @@ const QUICK_PROMPTS = [
   "Nu raspunde la telefon de 3 zile. Ce fac?",
   "Vrea sa se mai gandeasca. Cum inchid azi?",
   "Compara cu un competitor. Cum diferentiez?",
+  "Trebuie sa vorbesc cu sotia/sotul. Cum avansez?",
+  "Vrea sa analizeze piata si sa intrebe vecinii. Cum inchid?",
+  "Vrea sa vanda/inchirieze la acelasi pret ca vecinul din bloc. Cum ajustez asteptarea?",
 ];
 
 export function CoachPanel({ lead, onClose }: { lead: CoachLead; onClose: () => void }) {

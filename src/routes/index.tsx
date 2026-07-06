@@ -589,9 +589,16 @@ function LeadCard({ lead }: { lead: Lead }) {
       <div className="p-4 space-y-1 text-sm border-t border-border">
         <div><span className="font-semibold">Nume:</span> {lead.name}</div>
         {lead.phone && (
-          <div className="flex items-center gap-1">
-            <span className="font-semibold">Telefon:</span>
-            <a href={`tel:${lead.phone}`} className="text-primary underline">{lead.phone}</a>
+          <div className="flex items-start gap-2 pt-1">
+            <span className="font-semibold">Contact:</span>
+            <div className="flex flex-col items-center">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&margin=1&data=${encodeURIComponent(`tel:${lead.phone}`)}`}
+                alt="QR contact"
+                className="h-28 w-28 border border-border rounded bg-white p-1"
+              />
+              <span className="text-[10px] text-muted-foreground mt-1">Scaneaza pentru contact</span>
+            </div>
           </div>
         )}
         {lead.email && (
