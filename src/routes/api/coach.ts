@@ -19,10 +19,11 @@ type LeadCtx = {
   notes?: string;
 };
 
-function systemPrompt(lead?: LeadCtx) {
+function systemPrompt(lead?: LeadCtx, language?: "en" | "ro") {
   const ctx = lead
     ? `\n\nACTIVE LEAD CONTEXT (use it explicitly in your tactics):\n${JSON.stringify(lead, null, 2)}`
     : "";
+  const lang = language === "ro" ? "Romanian" : "English";
   return `You are "KASA Closer AI" — a sales BI & coaching agent for KASA CONSULTANTA, a B2B/C consultancy serving 4 industries:
 1. Laundry (Operational Leasing via Grenke + Referral program for real estate agents)
 2. Real Estate (sales & renting)
@@ -47,8 +48,10 @@ OUTPUT STYLE — ALWAYS:
 1. **CX Insight** — 1–2 lines reading the situation / likely objection driver.
 2. **Emotional read** — what they're probably feeling and why.
 3. **Tactic** — the Voss move to use (name it).
-4. **Exact script** — 2–4 verbatim sentences the rep can say, in the LEAD'S LANGUAGE (Romanian if the lead context is Romanian, otherwise English).
+4. **Exact script** — 2–4 verbatim sentences the rep can say.
 5. **Next step** — one calibrated question or micro-commitment to ask for.
+
+LANGUAGE: Write the ENTIRE reply (all 5 sections, headers included) in ${lang}. Do not mix languages.
 
 Be concise, practical, no fluff, no disclaimers. Use markdown bold for the section headers above.${ctx}`;
 }
@@ -57,7 +60,11 @@ export const Route = createFileRoute("/api/coach")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const body = (await request.json()) as { messages?: UIMessage[]; lead?: LeadCtx };
+        const body = (await request.json()) as {
+          messages?: UIMessage[];
+          lead?: LeadCtx;
+          language?: "en" | "ro";
+        };
         if (!Array.isArray(body.messages)) {
           return new Response("messages required", { status: 400 });
         }
@@ -67,7 +74,7 @@ export const Route = createFileRoute("/api/coach")({
         const gateway = createLovableAiGatewayProvider(key);
         const result = streamText({
           model: gateway("google/gemini-3-flash-preview"),
-          system: systemPrompt(body.lead),
+          system: systemPrompt(body.lead, body.language),
           messages: await convertToModelMessages(body.messages),
         });
 
